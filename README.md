@@ -9,35 +9,53 @@ Given a $10,000 portfolio that grew to $12,064 over ~2.8 years, the tool shows h
 Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/).
 
 ```bash
-uv sync
+git clone https://github.com/jmf-pobox/mcra.git
+cd mcra
+uv sync                # creates .venv and installs dependencies
+```
+
+### Running
+
+Use `uv run` to execute `mcra` — this activates the virtual environment automatically:
+
+```bash
+uv run mcra --help
+```
+
+Alternatively, activate the venv and run `mcra` directly:
+
+```bash
+source .venv/bin/activate
+mcra --help
 ```
 
 ## Usage
 
 ```bash
 # Basic usage
-mcra --start-date 2023-03-31 --start-value 10000 --end-date 2026-01-31 --end-value 12064
+uv run mcra --start-date 2023-03-31 --start-value 10000 \
+            --end-date 2026-01-31 --end-value 12064
 
 # Specify currencies
-mcra --start-date 2023-03-31 --start-value 10000 \
-     --end-date 2026-01-31 --end-value 12064 \
-     --currencies USD,EUR,GBP,CHF
+uv run mcra --start-date 2023-03-31 --start-value 10000 \
+            --end-date 2026-01-31 --end-value 12064 \
+            --currencies USD,EUR,GBP,CHF
 
 # Include nominal CAGR column
-mcra --start-date 2023-03-31 --start-value 10000 \
-     --end-date 2026-01-31 --end-value 12064 --cagr
+uv run mcra --start-date 2023-03-31 --start-value 10000 \
+            --end-date 2026-01-31 --end-value 12064 --cagr
 
 # JSON output
-mcra --start-date 2023-03-31 --start-value 10000 \
-     --end-date 2026-01-31 --end-value 12064 --output json
+uv run mcra --start-date 2023-03-31 --start-value 10000 \
+            --end-date 2026-01-31 --end-value 12064 --output json
 
 # CSV output
-mcra --start-date 2023-03-31 --start-value 10000 \
-     --end-date 2026-01-31 --end-value 12064 --output csv
+uv run mcra --start-date 2023-03-31 --start-value 10000 \
+            --end-date 2026-01-31 --end-value 12064 --output csv
 
 # Cache management
-mcra --cache-status
-mcra --refresh-cache
+uv run mcra --cache-status
+uv run mcra --refresh-cache
 ```
 
 ### Example Output
@@ -130,13 +148,15 @@ Data is cached in `~/.mcra/cache/`:
 
 ```bash
 # Install with dev dependencies
-uv sync --all-extras
+uv sync --all-extras --all-groups
 
 # Run tests
 uv run pytest tests/ -v
 
-# Run without installing
-uv run python -m mcra.cli --help
+# Code quality checks
+uv run black --check mcra/ tests/
+uv run ruff check mcra/ tests/
+uv run mypy --strict mcra/
 ```
 
 ## Project Structure
