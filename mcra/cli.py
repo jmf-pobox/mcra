@@ -186,6 +186,11 @@ def main(
         click.echo(f"Cleared {count} cache file(s).")
         return
 
+    # Show help if no analysis options provided
+    if not start_date and not end_date and start_value is None and end_value is None:
+        click.echo(click.get_current_context().get_help())
+        return
+
     # Validate required options for analysis
     missing = []
     if not start_date:
