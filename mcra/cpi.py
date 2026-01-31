@@ -12,7 +12,7 @@ from __future__ import annotations
 import asyncio
 import csv
 import os
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from importlib import resources
 
 import httpx
@@ -34,7 +34,7 @@ async def _fetch_fred(
     """Fetch US CPI from FRED. Requires FRED_API_KEY env var."""
     api_key = os.environ.get("FRED_API_KEY")
     if not api_key:
-        raise EnvironmentError("FRED_API_KEY not set")
+        raise OSError("FRED_API_KEY not set")
 
     resp = await client.get(
         FRED_BASE,
@@ -95,10 +95,7 @@ async def _fetch_eurostat(
     # JSON-stat: join value indices with time dimension
     values = data.get("value", {})
     time_idx = (
-        data.get("dimension", {})
-        .get("time", {})
-        .get("category", {})
-        .get("index", {})
+        data.get("dimension", {}).get("time", {}).get("category", {}).get("index", {})
     )
 
     # Invert: {period: str_index}
@@ -114,6 +111,7 @@ async def _fetch_eurostat(
 
 # --- Bundled CSV fallback ---
 
+
 def _load_fallback_csv() -> dict[str, dict[str, float]]:
     """Load bundled CPI CSV. Returns {country: {YYYY-MM: value}}."""
     result: dict[str, dict[str, float]] = {}
@@ -127,6 +125,7 @@ def _load_fallback_csv() -> dict[str, dict[str, float]]:
 
 
 # --- CPI month lookup ---
+
 
 def _month_key(d: date) -> str:
     return f"{d.year}-{d.month:02d}"
@@ -206,6 +205,7 @@ def get_cpi_values(
 
 # --- Main fetch orchestrator ---
 
+
 async def fetch_cpi_for_currency(
     client: httpx.AsyncClient,
     currency: str,
@@ -236,7 +236,7 @@ async def fetch_cpi_for_currency(
             series = await _fetch_fred(client, start_date, end_date)
         else:
             series = await _fetch_eurostat(client, country, start_date, end_date)
-    except EnvironmentError:
+    except OSError:
         warnings.append("FRED_API_KEY not set. Using cached or fallback US CPI data.")
     except httpx.HTTPError as exc:
         warnings.append(f"API error fetching CPI for {country}: {exc}")
@@ -246,7 +246,7 @@ async def fetch_cpi_for_currency(
         entry = CPICacheEntry(
             country=country,
             source=source,
-            last_updated=datetime.now(timezone.utc),
+            last_updated=datetime.now(UTC),
             base_year="2015" if source == "Eurostat" else "1982-84",
             series=series,
         )
@@ -288,9 +288,10 @@ async def fetch_all_cpi(
     all_series: dict[str, dict[str, float]] = {}
     all_warnings: list[str] = []
 
-    for currency, result in zip(currencies, results):
-        if isinstance(result, Exception):
+    for currency, result in zip(currencies, results, strict=True):
+        if isinstance(result, BaseException):
             raise result
+        assert isinstance(result, tuple)
         series, warns = result
         all_series[currency] = series
         all_warnings.extend(warns)

@@ -58,13 +58,9 @@ async def test_fetch_rates_caches(httpx_mock: pytest_httpx.HTTPXMock):
 
     async with httpx.AsyncClient() as client:
         # First call hits API
-        rates1 = await fx.fetch_rates(
-            client, date(2023, 3, 31), "USD", ["USD", "EUR"]
-        )
+        rates1 = await fx.fetch_rates(client, date(2023, 3, 31), "USD", ["USD", "EUR"])
         # Second call should use cache (no second HTTP mock needed)
-        rates2 = await fx.fetch_rates(
-            client, date(2023, 3, 31), "USD", ["USD", "EUR"]
-        )
+        rates2 = await fx.fetch_rates(client, date(2023, 3, 31), "USD", ["USD", "EUR"])
 
     assert rates1["EUR"] == rates2["EUR"]
 

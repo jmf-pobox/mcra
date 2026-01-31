@@ -4,26 +4,28 @@ from __future__ import annotations
 
 import asyncio
 import sys
-from datetime import date, datetime
+from datetime import date
 
 import click
 import httpx
 
 from mcra import cache, calculator, cpi, formatters, fx
 from mcra.models import (
+    CURRENCY_COUNTRY_MAP,
+    SUPPORTED_CURRENCIES,
     AnalysisPeriod,
     AnalysisResult,
     CurrencyResult,
-    CURRENCY_COUNTRY_MAP,
-    SUPPORTED_CURRENCIES,
 )
 
 
 def _parse_date(value: str) -> date:
     try:
         return date.fromisoformat(value)
-    except ValueError:
-        raise click.BadParameter(f"Invalid date format: {value!r}. Use YYYY-MM-DD.")
+    except ValueError as exc:
+        raise click.BadParameter(
+            f"Invalid date format: {value!r}. Use YYYY-MM-DD."
+        ) from exc
 
 
 def _validate_currencies(raw: str) -> list[str]:
@@ -77,9 +79,7 @@ async def _run_analysis(
 
         # CPI lookup
         series = cpi_series[currency]
-        cpi_start_val, cpi_end_val = cpi.get_cpi_values(
-            series, start_date, end_date
-        )
+        cpi_start_val, cpi_end_val = cpi.get_cpi_values(series, start_date, end_date)
         infl = calculator.cumulative_inflation(cpi_start_val, cpi_end_val)
         real = calculator.real_return(nom, infl)
         discounted = calculator.discount_for_inflation(local_end, infl)
@@ -91,21 +91,23 @@ async def _run_analysis(
 
         nom_cagr = nom_cagr_val if show_cagr else None
 
-        results.append(CurrencyResult(
-            currency=currency,
-            country=CURRENCY_COUNTRY_MAP[currency].country,
-            start_value=local_start,
-            end_value=local_end,
-            fx_rate_start=fx_start,
-            fx_rate_end=fx_end,
-            fx_change_pct=fx_chg,
-            nominal_return_pct=nom,
-            cumulative_inflation_pct=infl,
-            real_return_pct=real,
-            discounted_end_value=discounted,
-            real_cagr_pct=real_cagr_val,
-            nominal_cagr_pct=nom_cagr,
-        ))
+        results.append(
+            CurrencyResult(
+                currency=currency,
+                country=CURRENCY_COUNTRY_MAP[currency].country,
+                start_value=local_start,
+                end_value=local_end,
+                fx_rate_start=fx_start,
+                fx_rate_end=fx_end,
+                fx_change_pct=fx_chg,
+                nominal_return_pct=nom,
+                cumulative_inflation_pct=infl,
+                real_return_pct=real,
+                discounted_end_value=discounted,
+                real_cagr_pct=real_cagr_val,
+                nominal_cagr_pct=nom_cagr,
+            )
+        )
 
     return AnalysisResult(
         period=period,
@@ -120,13 +122,32 @@ async def _run_analysis(
 @click.command()
 @click.option("--start-date", required=False, help="Start date (YYYY-MM-DD)")
 @click.option("--end-date", required=False, help="End date (YYYY-MM-DD)")
-@click.option("--start-value", required=False, type=float, help="Portfolio value at start")
+@click.option(
+    "--start-value", required=False, type=float, help="Portfolio value at start"
+)
 @click.option("--end-value", required=False, type=float, help="Portfolio value at end")
-@click.option("--base-currency", default="USD", help="Base currency of portfolio values (default: USD)")
-@click.option("--currencies", default="USD,EUR,GBP,CHF", help="Comma-separated target currencies")
+@click.option(
+    "--base-currency",
+    default="USD",
+    help="Base currency of portfolio values (default: USD)",
+)
+@click.option(
+    "--currencies", default="USD,EUR,GBP,CHF", help="Comma-separated target currencies"
+)
 @click.option("--cagr", is_flag=True, help="Include CAGR in output")
-@click.option("--output", "output_format", default="table", type=click.Choice(["table", "json", "csv"]), help="Output format")
-@click.option("--cache-status", "show_cache_status", is_flag=True, help="Show cache file locations and freshness")
+@click.option(
+    "--output",
+    "output_format",
+    default="table",
+    type=click.Choice(["table", "json", "csv"]),
+    help="Output format",
+)
+@click.option(
+    "--cache-status",
+    "show_cache_status",
+    is_flag=True,
+    help="Show cache file locations and freshness",
+)
 @click.option("--refresh-cache", is_flag=True, help="Force refresh of cached CPI data")
 def main(
     start_date: str | None,
@@ -153,7 +174,10 @@ def main(
         else:
             click.echo("Cache files:")
             for e in entries:
-                click.echo(f"  {e['file']:20s}  {e['size_bytes']:>8d} bytes  modified {e['modified']}")
+                name = e["file"]
+                size = e["size_bytes"]
+                mod = e["modified"]
+                click.echo(f"  {name:20s}  {size:>8d} bytes  modified {mod}")
             click.echo(f"\nCache directory: {cache.CACHE_DIR}")
         return
 
@@ -199,17 +223,32 @@ def main(
     base = base_currency.strip().upper()
     if base not in CURRENCY_COUNTRY_MAP:
         supported = ", ".join(SUPPORTED_CURRENCIES)
-        click.echo(f"Error: Base currency {base!r} not supported. Supported: {supported}", err=True)
+        click.echo(
+            f"Error: Base currency {base!r} not supported. Supported: {supported}",
+            err=True,
+        )
         sys.exit(1)
 
     # Ensure base currency is in the list
     if base not in currency_list:
         currency_list.insert(0, base)
 
+    assert start_value is not None
+    assert end_value is not None
+
     try:
-        result = asyncio.run(_run_analysis(
-            sd, ed, start_value, end_value, base, currency_list, cagr, refresh_cache,  # type: ignore[arg-type]
-        ))
+        result = asyncio.run(
+            _run_analysis(
+                sd,
+                ed,
+                start_value,
+                end_value,
+                base,
+                currency_list,
+                cagr,
+                refresh_cache,
+            )
+        )
     except Exception as exc:
         click.echo(f"Error: {exc}", err=True)
         sys.exit(1)

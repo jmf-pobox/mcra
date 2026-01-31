@@ -10,7 +10,7 @@ Cache layout:
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from mcra.models import CPICacheEntry
@@ -24,6 +24,7 @@ def _ensure_cache_dir() -> None:
 
 
 # --- CPI cache ---
+
 
 def _cpi_path(country: str) -> Path:
     return CACHE_DIR / f"cpi_{country}.json"
@@ -59,7 +60,7 @@ def save_cpi_cache(entry: CPICacheEntry) -> None:
 
 
 def is_cpi_stale(entry: CPICacheEntry) -> bool:
-    age = datetime.now(timezone.utc) - entry.last_updated.replace(tzinfo=timezone.utc)
+    age = datetime.now(UTC) - entry.last_updated.replace(tzinfo=UTC)
     return age > timedelta(days=CPI_STALENESS_DAYS)
 
 
@@ -68,11 +69,12 @@ def is_cpi_stale(entry: CPICacheEntry) -> bool:
 _FX_PATH = CACHE_DIR / "fx_cache.json"
 
 
-def _load_fx_store() -> dict:
+def _load_fx_store() -> dict[str, float]:
     if not _FX_PATH.exists():
         return {}
     try:
-        return json.loads(_FX_PATH.read_text())
+        data: dict[str, float] = json.loads(_FX_PATH.read_text())
+        return data
     except json.JSONDecodeError:
         return {}
 
@@ -93,7 +95,8 @@ def save_fx_rates(date_str: str, base: str, rates: dict[str, float]) -> None:
 
 # --- Cache management ---
 
-def cache_status() -> list[dict]:
+
+def cache_status() -> list[dict[str, object]]:
     """Return info about each cache file for --cache-status."""
     _ensure_cache_dir()
     results = []
@@ -101,12 +104,14 @@ def cache_status() -> list[dict]:
         if not path.is_file():
             continue
         stat = path.stat()
-        results.append({
-            "file": path.name,
-            "path": str(path),
-            "size_bytes": stat.st_size,
-            "modified": datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
-        })
+        results.append(
+            {
+                "file": path.name,
+                "path": str(path),
+                "size_bytes": stat.st_size,
+                "modified": datetime.fromtimestamp(stat.st_mtime, tz=UTC).isoformat(),
+            }
+        )
     return results
 
 

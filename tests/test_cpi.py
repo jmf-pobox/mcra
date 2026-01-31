@@ -90,17 +90,15 @@ async def test_fetch_eurostat(httpx_mock: pytest_httpx.HTTPXMock):
         json={
             "value": {"0": 118.9, "1": 119.4},
             "dimension": {
-                "time": {
-                    "category": {
-                        "index": {"2023-03": 0, "2023-04": 1}
-                    }
-                }
+                "time": {"category": {"index": {"2023-03": 0, "2023-04": 1}}}
             },
         },
     )
 
     async with httpx.AsyncClient() as client:
-        series = await cpi._fetch_eurostat(client, "DE", date(2023, 3, 1), date(2023, 4, 30))
+        series = await cpi._fetch_eurostat(
+            client, "DE", date(2023, 3, 1), date(2023, 4, 30)
+        )
 
     assert series["2023-03"] == pytest.approx(118.9)
     assert series["2023-04"] == pytest.approx(119.4)

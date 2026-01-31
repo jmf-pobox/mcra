@@ -5,12 +5,13 @@ from __future__ import annotations
 import csv
 import io
 import json
+from typing import Any
 
+from rich import box
 from rich.console import Console
 from rich.table import Table
-from rich import box
 
-from mcra.models import AnalysisResult, CurrencyResult, CURRENCY_COUNTRY_MAP
+from mcra.models import CURRENCY_COUNTRY_MAP, AnalysisResult
 
 
 def _fmt_pct(val: float, plus_sign: bool = True) -> str:
@@ -67,7 +68,9 @@ def format_table(result: AnalysisResult, show_cagr: bool = False) -> str:
         table.add_column("Nom CAGR", justify="right")
 
     for r in result.results:
-        fx_str = "—" if r.currency == result.base_currency else _fmt_pct(r.fx_change_pct)
+        fx_str = (
+            "—" if r.currency == result.base_currency else _fmt_pct(r.fx_change_pct)
+        )
         row = [
             r.currency,
             _fmt_currency_value(r.start_value, r.currency),
@@ -80,7 +83,9 @@ def format_table(result: AnalysisResult, show_cagr: bool = False) -> str:
             _fmt_pct(r.cumulative_inflation_pct, plus_sign=False),
         ]
         if show_cagr:
-            row.append(_fmt_pct(r.nominal_cagr_pct) if r.nominal_cagr_pct is not None else "—")
+            row.append(
+                _fmt_pct(r.nominal_cagr_pct) if r.nominal_cagr_pct is not None else "—"
+            )
         table.add_row(*row)
 
     rich_console.print(header, end="")
@@ -98,7 +103,7 @@ def format_table(result: AnalysisResult, show_cagr: bool = False) -> str:
 
 def format_json(result: AnalysisResult, show_cagr: bool = False) -> str:
     """Format results as JSON."""
-    data = {
+    data: dict[str, Any] = {
         "period": {
             "start_date": result.period.start_date.isoformat(),
             "end_date": result.period.end_date.isoformat(),
@@ -113,7 +118,7 @@ def format_json(result: AnalysisResult, show_cagr: bool = False) -> str:
     }
 
     for r in result.results:
-        entry: dict = {
+        entry: dict[str, Any] = {
             "currency": r.currency,
             "country": r.country,
             "start_value": round(r.start_value, 2),
@@ -128,7 +133,11 @@ def format_json(result: AnalysisResult, show_cagr: bool = False) -> str:
             "real_cagr_pct": round(r.real_cagr_pct * 100, 2),
         }
         if show_cagr:
-            entry["nominal_cagr_pct"] = round(r.nominal_cagr_pct * 100, 2) if r.nominal_cagr_pct is not None else None
+            entry["nominal_cagr_pct"] = (
+                round(r.nominal_cagr_pct * 100, 2)
+                if r.nominal_cagr_pct is not None
+                else None
+            )
 
         data["results"].append(entry)
 
@@ -146,9 +155,17 @@ def format_csv(result: AnalysisResult, show_cagr: bool = False) -> str:
     """Format results as CSV."""
     buf = io.StringIO()
     fields = [
-        "currency", "country", "start_value", "end_value", "discounted_end_value",
-        "fx_rate_start", "fx_rate_end", "fx_change_pct",
-        "nominal_return_pct", "cumulative_inflation_pct", "real_return_pct",
+        "currency",
+        "country",
+        "start_value",
+        "end_value",
+        "discounted_end_value",
+        "fx_rate_start",
+        "fx_rate_end",
+        "fx_change_pct",
+        "nominal_return_pct",
+        "cumulative_inflation_pct",
+        "real_return_pct",
         "real_cagr_pct",
     ]
     if show_cagr:
@@ -158,7 +175,7 @@ def format_csv(result: AnalysisResult, show_cagr: bool = False) -> str:
     writer.writeheader()
 
     for r in result.results:
-        row: dict = {
+        row: dict[str, str] = {
             "currency": r.currency,
             "country": r.country,
             "start_value": f"{r.start_value:.2f}",
@@ -173,7 +190,11 @@ def format_csv(result: AnalysisResult, show_cagr: bool = False) -> str:
             "real_cagr_pct": f"{r.real_cagr_pct * 100:.2f}",
         }
         if show_cagr:
-            row["nominal_cagr_pct"] = f"{r.nominal_cagr_pct * 100:.2f}" if r.nominal_cagr_pct is not None else ""
+            row["nominal_cagr_pct"] = (
+                f"{r.nominal_cagr_pct * 100:.2f}"
+                if r.nominal_cagr_pct is not None
+                else ""
+            )
         writer.writerow(row)
 
     return buf.getvalue()

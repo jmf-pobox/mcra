@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date, datetime
 
-
 CURRENCY_COUNTRY_MAP: dict[str, CurrencyInfo] = {}
 
 
@@ -62,6 +61,7 @@ class CPICacheEntry:
 
 
 # --- Currency registry ---
+
 
 def _build_currency_map() -> dict[str, CurrencyInfo]:
     entries = [

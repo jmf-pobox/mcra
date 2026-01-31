@@ -5,9 +5,9 @@ from datetime import date
 import pytest
 
 from mcra.calculator import (
+    annualized_inflation,
     convert_to_currency,
     cumulative_inflation,
-    annualized_inflation,
     fx_change,
     nominal_cagr,
     nominal_return,

@@ -9,7 +9,14 @@
       "Bash(uv sync:*)",
       "Bash(uv run pytest:*)",
       "Bash(uv run mcra:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd multi-currency real return analyzer CLI\n\nPython CLI tool that calculates portfolio returns across USD, EUR, GBP,\nCHF, and JPY, adjusting for local inflation via the Fisher equation.\n\nUses async httpx for parallel FX \\(Frankfurter API\\) and CPI \\(FRED +\nEurostat\\) fetching, with file-based caching and bundled CSV fallback.\nOutputs Rich tables, JSON, or CSV.\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git commit:*)",
+      "Bash(git remote add:*)",
+      "Bash(git push:*)",
+      "Bash(uv run black:*)",
+      "Bash(uv run ruff check:*)",
+      "Bash(uv run mypy:*)"
     ]
   }
 }

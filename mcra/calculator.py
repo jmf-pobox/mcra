@@ -24,7 +24,7 @@ def nominal_cagr(start_value: float, end_value: float, years: float) -> float:
     """Compound Annual Growth Rate."""
     if years <= 0:
         raise ValueError("Period must be positive")
-    return (end_value / start_value) ** (1 / years) - 1
+    return float((end_value / start_value) ** (1 / years)) - 1
 
 
 def cumulative_inflation(cpi_start: float, cpi_end: float) -> float:
@@ -36,7 +36,7 @@ def annualized_inflation(cpi_start: float, cpi_end: float, years: float) -> floa
     """Annualized inflation rate."""
     if years <= 0:
         raise ValueError("Period must be positive")
-    return (cpi_end / cpi_start) ** (1 / years) - 1
+    return float((cpi_end / cpi_start) ** (1 / years)) - 1
 
 
 def real_return(nominal: float, inflation: float) -> float:
@@ -55,5 +55,8 @@ def discount_for_inflation(end_value: float, cumulative_infl: float) -> float:
 
 
 def fx_change(fx_start: float, fx_end: float) -> float:
-    """Percentage change in exchange rate. Negative = base currency weakened vs target."""
+    """Percentage change in FX rate.
+
+    Negative means base currency weakened vs target.
+    """
     return (fx_end / fx_start) - 1
