@@ -5,11 +5,18 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date, datetime
 
-CURRENCY_COUNTRY_MAP: dict[str, CurrencyInfo] = {}
+# PEP 695 type aliases for recurring complex types
+type CPISeries = dict[str, float]
+"""Monthly CPI index values keyed by 'YYYY-MM'."""
+
+type CountryCPIData = dict[str, CPISeries]
+"""CPI series grouped by country code."""
 
 
 @dataclass(slots=True)
 class CurrencyInfo:
+    """Currency configuration mapping a currency code to its country and data source."""
+
     code: str
     country: str
     country_name: str
@@ -19,6 +26,8 @@ class CurrencyInfo:
 
 @dataclass(slots=True)
 class CurrencyResult:
+    """Analysis result for a single target currency."""
+
     currency: str
     country: str
     start_value: float
@@ -36,6 +45,8 @@ class CurrencyResult:
 
 @dataclass(slots=True)
 class AnalysisPeriod:
+    """Start/end dates and fractional year duration for an analysis."""
+
     start_date: date
     end_date: date
     years: float
@@ -43,6 +54,8 @@ class AnalysisPeriod:
 
 @dataclass(slots=True)
 class AnalysisResult:
+    """Top-level result containing per-currency results and metadata."""
+
     period: AnalysisPeriod
     base_currency: str
     start_value: float
@@ -53,11 +66,13 @@ class AnalysisResult:
 
 @dataclass(slots=True)
 class CPICacheEntry:
+    """Cached CPI data for a single country."""
+
     country: str
     source: str
     last_updated: datetime
     base_year: str
-    series: dict[str, float]  # "YYYY-MM" -> index value
+    series: CPISeries
 
 
 # --- Currency registry ---

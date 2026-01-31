@@ -18,7 +18,7 @@ from importlib import resources
 import httpx
 
 from mcra import cache
-from mcra.models import CURRENCY_COUNTRY_MAP, CPICacheEntry
+from mcra.models import CURRENCY_COUNTRY_MAP, CountryCPIData, CPICacheEntry, CPISeries
 
 # --- FRED (US CPI) ---
 
@@ -30,7 +30,7 @@ async def _fetch_fred(
     client: httpx.AsyncClient,
     start: date,
     end: date,
-) -> dict[str, float]:
+) -> CPISeries:
     """Fetch US CPI from FRED. Requires FRED_API_KEY env var."""
     api_key = os.environ.get("FRED_API_KEY")
     if not api_key:
@@ -49,7 +49,7 @@ async def _fetch_fred(
     resp.raise_for_status()
     data = resp.json()
 
-    series: dict[str, float] = {}
+    series: CPISeries = {}
     for obs in data.get("observations", []):
         if obs["value"] == ".":
             continue
@@ -72,7 +72,7 @@ async def _fetch_eurostat(
     country_code: str,
     start: date,
     end: date,
-) -> dict[str, float]:
+) -> CPISeries:
     """Fetch HICP index from Eurostat for a given country."""
     since = f"{start.year}-{start.month:02d}"
     until = f"{end.year}-{end.month:02d}"
@@ -101,7 +101,7 @@ async def _fetch_eurostat(
     # Invert: {period: str_index}
     idx_to_period = {str(v): k for k, v in time_idx.items()}
 
-    series: dict[str, float] = {}
+    series: CPISeries = {}
     for str_idx, val in values.items():
         period = idx_to_period.get(str_idx)
         if period is not None and val is not None:
@@ -112,9 +112,9 @@ async def _fetch_eurostat(
 # --- Bundled CSV fallback ---
 
 
-def _load_fallback_csv() -> dict[str, dict[str, float]]:
+def _load_fallback_csv() -> CountryCPIData:
     """Load bundled CPI CSV. Returns {country: {YYYY-MM: value}}."""
-    result: dict[str, dict[str, float]] = {}
+    result: CountryCPIData = {}
     csv_path = resources.files("mcra.data").joinpath("cpi_fallback.csv")
     text = csv_path.read_text(encoding="utf-8")
     for row in csv.DictReader(text.splitlines()):
@@ -131,7 +131,7 @@ def _month_key(d: date) -> str:
     return f"{d.year}-{d.month:02d}"
 
 
-def _interpolate_cpi(series: dict[str, float], target_key: str) -> float | None:
+def _interpolate_cpi(series: CPISeries, target_key: str) -> float | None:
     """Linear interpolation between two adjacent months if target is missing."""
     sorted_keys = sorted(series.keys())
     if not sorted_keys:
@@ -154,7 +154,7 @@ def _interpolate_cpi(series: dict[str, float], target_key: str) -> float | None:
     return (series[prev_key] + series[next_key]) / 2
 
 
-def _nearest_cpi(series: dict[str, float], target_key: str) -> float | None:
+def _nearest_cpi(series: CPISeries, target_key: str) -> float | None:
     """Return the value of the closest available month."""
     if not series:
         return None
@@ -172,7 +172,7 @@ def _month_distance(a: str, b: str) -> int:
 
 
 def get_cpi_values(
-    series: dict[str, float],
+    series: CPISeries,
     start_date: date,
     end_date: date,
 ) -> tuple[float, float]:
@@ -212,7 +212,7 @@ async def fetch_cpi_for_currency(
     start_date: date,
     end_date: date,
     force_refresh: bool = False,
-) -> tuple[dict[str, float], list[str]]:
+) -> tuple[CPISeries, list[str]]:
     """Fetch CPI series for a currency's reference country.
 
     Returns (series_dict, warnings_list).
@@ -228,7 +228,7 @@ async def fetch_cpi_for_currency(
             return cached.series, warnings
 
     # 2. Fetch from API
-    series: dict[str, float] | None = None
+    series: CPISeries | None = None
     source = info.cpi_source
 
     try:
@@ -274,7 +274,7 @@ async def fetch_all_cpi(
     start_date: date,
     end_date: date,
     force_refresh: bool = False,
-) -> tuple[dict[str, dict[str, float]], list[str]]:
+) -> tuple[CountryCPIData, list[str]]:
     """Fetch CPI series for all requested currencies in parallel.
 
     Returns ({currency: series}, aggregated_warnings).
@@ -285,7 +285,7 @@ async def fetch_all_cpi(
     ]
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
-    all_series: dict[str, dict[str, float]] = {}
+    all_series: CountryCPIData = {}
     all_warnings: list[str] = []
 
     for currency, result in zip(currencies, results, strict=True):
