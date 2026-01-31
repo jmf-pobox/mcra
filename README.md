@@ -113,7 +113,7 @@ Without it, the tool falls back to bundled/cached data with a warning.
 |--------|---------|
 | Nominal return | `(end / start) - 1` |
 | Cumulative inflation | `(CPI_end / CPI_start) - 1` |
-| Real return | `(1 + nominal) / (1 + inflation) - 1` (Fisher equation) |
+| Real return | `((1 + nominal) / (1 + inflation)) - 1` (Fisher equation) |
 | Discounted value | `end_value / (1 + inflation)` |
 | CAGR | `(end / start) ^ (1/years) - 1` |
 | FX change | `(fx_end / fx_start) - 1` |
