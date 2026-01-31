@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C /Users/jfreeman/Coding/mcra-cli log --oneline)",
+      "Bash(git -C /Users/jfreeman/Coding/mcra-cli remote -v)",
+      "Bash(git -C /Users/jfreeman/Coding/mcra-cli branch -a)",
+      "Bash(git -C /Users/jfreeman/Coding/mcra-cli status)",
+      "Bash(tree:*)",
+      "Bash(uv sync:*)",
+      "Bash(uv run pytest:*)",
+      "Bash(uv run mcra:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}
