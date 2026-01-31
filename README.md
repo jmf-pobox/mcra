@@ -16,13 +16,7 @@ uv sync                # creates .venv and installs dependencies
 
 ### Running
 
-Use `uv run` to execute `mcra` — this activates the virtual environment automatically:
-
-```bash
-uv run mcra --help
-```
-
-Alternatively, activate the venv and run `mcra` directly:
+Activate the virtual environment, then `mcra` is available directly:
 
 ```bash
 source .venv/bin/activate
@@ -33,29 +27,29 @@ mcra --help
 
 ```bash
 # Basic usage
-uv run mcra --start-date 2023-03-31 --start-value 10000 \
-            --end-date 2026-01-31 --end-value 12064
+mcra --start-date 2023-03-31 --start-value 10000 \
+     --end-date 2026-01-31 --end-value 12064
 
 # Specify currencies
-uv run mcra --start-date 2023-03-31 --start-value 10000 \
-            --end-date 2026-01-31 --end-value 12064 \
-            --currencies USD,EUR,GBP,CHF
+mcra --start-date 2023-03-31 --start-value 10000 \
+     --end-date 2026-01-31 --end-value 12064 \
+     --currencies USD,EUR,GBP,CHF
 
 # Include nominal CAGR column
-uv run mcra --start-date 2023-03-31 --start-value 10000 \
-            --end-date 2026-01-31 --end-value 12064 --cagr
+mcra --start-date 2023-03-31 --start-value 10000 \
+     --end-date 2026-01-31 --end-value 12064 --cagr
 
 # JSON output
-uv run mcra --start-date 2023-03-31 --start-value 10000 \
-            --end-date 2026-01-31 --end-value 12064 --output json
+mcra --start-date 2023-03-31 --start-value 10000 \
+     --end-date 2026-01-31 --end-value 12064 --output json
 
 # CSV output
-uv run mcra --start-date 2023-03-31 --start-value 10000 \
-            --end-date 2026-01-31 --end-value 12064 --output csv
+mcra --start-date 2023-03-31 --start-value 10000 \
+     --end-date 2026-01-31 --end-value 12064 --output csv
 
 # Cache management
-uv run mcra --cache-status
-uv run mcra --refresh-cache
+mcra --cache-status
+mcra --refresh-cache
 ```
 
 ### Example Output
