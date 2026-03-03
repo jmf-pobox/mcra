@@ -62,8 +62,7 @@ async def _fetch_fred(
 # --- Eurostat (HICP) ---
 
 EUROSTAT_BASE = (
-    "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0"
-    "/data/prc_hicp_midx"
+    "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/prc_hicp_midx"
 )
 
 
