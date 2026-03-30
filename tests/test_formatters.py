@@ -6,9 +6,9 @@ import json
 from datetime import date
 
 from mcra.formatters import (
-    _fmt_currency_value,
     _fmt_number,
-    _fmt_pct,
+    fmt_currency_value,
+    fmt_pct,
     format_csv,
     format_json,
     format_table,
@@ -81,30 +81,30 @@ class TestFmtNumber:
 
 class TestFmtPct:
     def test_positive(self) -> None:
-        assert _fmt_pct(0.232) == "+23.2%"
+        assert fmt_pct(0.232) == "+23.2%"
 
     def test_negative(self) -> None:
-        assert _fmt_pct(-0.05) == "-5.0%"
+        assert fmt_pct(-0.05) == "-5.0%"
 
     def test_no_plus_sign(self) -> None:
-        assert _fmt_pct(0.074, plus_sign=False) == "7.4%"
+        assert fmt_pct(0.074, plus_sign=False) == "7.4%"
 
     def test_zero(self) -> None:
-        assert _fmt_pct(0.0) == "0.0%"
+        assert fmt_pct(0.0) == "0.0%"
 
 
 class TestFmtCurrencyValue:
     def test_usd(self) -> None:
-        assert _fmt_currency_value(10000.0, "USD") == "$10.00K"
+        assert fmt_currency_value(10000.0, "USD") == "$10.00K"
 
     def test_eur(self) -> None:
-        assert _fmt_currency_value(500.0, "EUR") == "€500.00"
+        assert fmt_currency_value(500.0, "EUR") == "€500.00"
 
     def test_chf(self) -> None:
-        assert _fmt_currency_value(14210.0, "CHF") == "Fr14.21K"
+        assert fmt_currency_value(14210.0, "CHF") == "Fr14.21K"
 
     def test_unknown_currency(self) -> None:
-        assert _fmt_currency_value(100.0, "XYZ") == "XYZ 100.00"
+        assert fmt_currency_value(100.0, "XYZ") == "XYZ 100.00"
 
 
 class TestFormatTable:

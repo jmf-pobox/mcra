@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import date
 
+import httpx
 from textual import work
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical
@@ -16,10 +18,13 @@ from textual.widgets import (
     Label,
     Static,
 )
+from textual.worker import Worker, WorkerState
 
 from mcra.cli import _run_analysis
-from mcra.formatters import _fmt_currency_value, _fmt_pct
-from mcra.models import SUPPORTED_CURRENCIES, AnalysisResult
+from mcra.formatters import fmt_currency_value, fmt_pct
+from mcra.models import CURRENCY_COUNTRY_MAP, SUPPORTED_CURRENCIES, AnalysisResult
+
+_log = logging.getLogger(__name__)
 
 
 class McraApp(App[None]):
@@ -133,39 +138,86 @@ class McraApp(App[None]):
     def action_run_analysis(self) -> None:
         self._do_analysis()
 
+    def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
+        if event.state == WorkerState.ERROR:
+            _log.exception("Worker error", exc_info=event.worker.error)
+            self.query_one("#status", Static).update(
+                f"Worker error: {event.worker.error}. See logs for details."
+            )
+
     @work(exclusive=True)
     async def _do_analysis(self) -> None:
         status = self.query_one("#status", Static)
         warnings_widget = self.query_one("#warnings", Static)
         table = self.query_one(DataTable)
 
-        status.update("Fetching data...")
         warnings_widget.update("")
         table.clear()
 
+        # Parse inputs
         try:
             start_date = date.fromisoformat(
                 self.query_one("#start-date", Input).value.strip()
             )
+        except ValueError:
+            status.update("Start Date must be in YYYY-MM-DD format.")
+            return
+
+        try:
             end_date = date.fromisoformat(
                 self.query_one("#end-date", Input).value.strip()
             )
-            start_value = float(self.query_one("#start-value", Input).value.strip())
-            end_value = float(self.query_one("#end-value", Input).value.strip())
-            base_currency = (
-                self.query_one("#base-currency", Input).value.strip().upper()
-            )
-            currencies = [
-                c.strip().upper()
-                for c in self.query_one("#currencies", Input).value.split(",")
-                if c.strip()
-            ]
-        except (ValueError, TypeError) as exc:
-            status.update(f"Input error: {exc}")
+        except ValueError:
+            status.update("End Date must be in YYYY-MM-DD format.")
             return
+
+        try:
+            start_value = float(self.query_one("#start-value", Input).value.strip())
+        except ValueError:
+            status.update("Start Value must be a number.")
+            return
+
+        try:
+            end_value = float(self.query_one("#end-value", Input).value.strip())
+        except ValueError:
+            status.update("End Value must be a number.")
+            return
+
+        base_currency = self.query_one("#base-currency", Input).value.strip().upper()
+        currencies = [
+            c.strip().upper()
+            for c in self.query_one("#currencies", Input).value.split(",")
+            if c.strip()
+        ]
+
+        # Validate
+        if start_value <= 0:
+            status.update("Start Value must be positive.")
+            return
+        if end_value <= 0:
+            status.update("End Value must be positive.")
+            return
+        if end_date > date.today():
+            status.update("End Date cannot be in the future.")
+            return
+        if end_date <= start_date:
+            status.update("End Date must be after Start Date.")
+            return
+        if base_currency not in CURRENCY_COUNTRY_MAP:
+            status.update(f"Unsupported base currency: {base_currency!r}.")
+            return
+        if not currencies:
+            status.update("Enter at least one currency (e.g. USD,EUR,GBP).")
+            return
+        for c in currencies:
+            if c not in CURRENCY_COUNTRY_MAP:
+                status.update(f"Unsupported currency: {c!r}.")
+                return
 
         if base_currency not in currencies:
             currencies.insert(0, base_currency)
+
+        status.update("Fetching data...")
 
         try:
             result: AnalysisResult = await _run_analysis(
@@ -178,23 +230,52 @@ class McraApp(App[None]):
                 show_cagr=False,
                 force_refresh=False,
             )
+        except httpx.TimeoutException:
+            status.update("Request timed out. Check your network connection.")
+            return
+        except httpx.HTTPStatusError as exc:
+            status.update(
+                f"API error {exc.response.status_code} from "
+                f"{exc.request.url.host}. Try again later."
+            )
+            return
+        except httpx.RequestError as exc:
+            status.update(f"Network error: {exc}.")
+            return
+        except KeyError as exc:
+            status.update(f"Missing data for currency {exc}.")
+            return
+        except ValueError as exc:
+            status.update(f"Data error: {exc}")
+            return
         except Exception as exc:
-            status.update(f"Error: {exc}")
+            _log.exception("Unexpected error in _do_analysis")
+            status.update(
+                f"Unexpected error: {type(exc).__name__}: {exc}. "
+                "Please report this as a bug."
+            )
             return
 
-        for r in result.results:
-            fx_str = "—" if r.currency == base_currency else _fmt_pct(r.fx_change_pct)
-            table.add_row(
-                r.currency,
-                _fmt_currency_value(r.start_value, r.currency),
-                _fmt_currency_value(r.end_value, r.currency),
-                _fmt_currency_value(r.discounted_end_value, r.currency),
-                _fmt_pct(r.nominal_return_pct),
-                _fmt_pct(r.real_return_pct),
-                _fmt_pct(r.real_cagr_pct),
-                fx_str,
-                _fmt_pct(r.cumulative_inflation_pct, plus_sign=False),
-            )
+        try:
+            for r in result.results:
+                fx_str = (
+                    "—" if r.currency == base_currency else fmt_pct(r.fx_change_pct)
+                )
+                table.add_row(
+                    r.currency,
+                    fmt_currency_value(r.start_value, r.currency),
+                    fmt_currency_value(r.end_value, r.currency),
+                    fmt_currency_value(r.discounted_end_value, r.currency),
+                    fmt_pct(r.nominal_return_pct),
+                    fmt_pct(r.real_return_pct),
+                    fmt_pct(r.real_cagr_pct),
+                    fx_str,
+                    fmt_pct(r.cumulative_inflation_pct, plus_sign=False),
+                )
+        except Exception as exc:
+            _log.exception("Error rendering results")
+            status.update(f"Error rendering results: {exc}")
+            return
 
         p = result.period
         status.update(
@@ -203,9 +284,7 @@ class McraApp(App[None]):
         )
 
         if result.warnings:
-            warnings_widget.update(
-                "\n".join(f"⚠ {w}" for w in result.warnings)
-            )
+            warnings_widget.update("\n".join(f"⚠ {w}" for w in result.warnings))
 
 
 def main() -> None:
