@@ -14,7 +14,7 @@ from rich.table import Table
 from mcra.models import CURRENCY_COUNTRY_MAP, AnalysisResult
 
 
-def _fmt_pct(val: float, plus_sign: bool = True) -> str:
+def fmt_pct(val: float, plus_sign: bool = True) -> str:
     """Format a decimal as a percentage with 1 decimal place."""
     pct = val * 100
     if plus_sign and pct > 0:
@@ -34,7 +34,7 @@ def _fmt_number(value: float) -> str:
     return f"{value:.2f}"
 
 
-def _fmt_currency_value(value: float, currency: str) -> str:
+def fmt_currency_value(value: float, currency: str) -> str:
     """Format a value with the currency symbol and K/M suffix."""
     symbol = CURRENCY_COUNTRY_MAP.get(currency, None)
     prefix = symbol.symbol if symbol else f"{currency} "
@@ -68,23 +68,21 @@ def format_table(result: AnalysisResult, show_cagr: bool = False) -> str:
         table.add_column("Nom CAGR", justify="right")
 
     for r in result.results:
-        fx_str = (
-            "—" if r.currency == result.base_currency else _fmt_pct(r.fx_change_pct)
-        )
+        fx_str = "—" if r.currency == result.base_currency else fmt_pct(r.fx_change_pct)
         row = [
             r.currency,
-            _fmt_currency_value(r.start_value, r.currency),
-            _fmt_currency_value(r.end_value, r.currency),
-            _fmt_currency_value(r.discounted_end_value, r.currency),
-            _fmt_pct(r.nominal_return_pct),
-            _fmt_pct(r.real_return_pct),
-            _fmt_pct(r.real_cagr_pct),
+            fmt_currency_value(r.start_value, r.currency),
+            fmt_currency_value(r.end_value, r.currency),
+            fmt_currency_value(r.discounted_end_value, r.currency),
+            fmt_pct(r.nominal_return_pct),
+            fmt_pct(r.real_return_pct),
+            fmt_pct(r.real_cagr_pct),
             fx_str,
-            _fmt_pct(r.cumulative_inflation_pct, plus_sign=False),
+            fmt_pct(r.cumulative_inflation_pct, plus_sign=False),
         ]
         if show_cagr:
             row.append(
-                _fmt_pct(r.nominal_cagr_pct) if r.nominal_cagr_pct is not None else "—"
+                fmt_pct(r.nominal_cagr_pct) if r.nominal_cagr_pct is not None else "—"
             )
         table.add_row(*row)
 

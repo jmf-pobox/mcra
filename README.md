@@ -23,6 +23,16 @@ source .venv/bin/activate
 mcra --help
 ```
 
+### TUI
+
+An interactive terminal UI is included:
+
+```bash
+mcra-tui
+```
+
+Edit dates, values, and currencies in the form and press Ctrl+R or click Run Analysis. Press `q` to quit.
+
 ## Usage
 
 ```bash
