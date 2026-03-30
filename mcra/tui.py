@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from datetime import date
 
 from textual import work
@@ -81,7 +80,9 @@ class McraApp(App[None]):
         with Vertical(id="form"):
             with Horizontal(classes="form-row"):
                 yield Label("Start Date:")
-                yield Input(value="2023-03-31", id="start-date", placeholder="YYYY-MM-DD")
+                yield Input(
+                    value="2023-03-31", id="start-date", placeholder="YYYY-MM-DD"
+                )
                 yield Label("End Date:")
                 yield Input(value="2025-12-31", id="end-date", placeholder="YYYY-MM-DD")
             with Horizontal(classes="form-row"):
@@ -151,7 +152,9 @@ class McraApp(App[None]):
             )
             start_value = float(self.query_one("#start-value", Input).value.strip())
             end_value = float(self.query_one("#end-value", Input).value.strip())
-            base_currency = self.query_one("#base-currency", Input).value.strip().upper()
+            base_currency = (
+                self.query_one("#base-currency", Input).value.strip().upper()
+            )
             currencies = [
                 c.strip().upper()
                 for c in self.query_one("#currencies", Input).value.split(",")
