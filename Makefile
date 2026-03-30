@@ -10,8 +10,8 @@ install: ## Install all deps (core + dev + coverage)
 
 check: fmt lint typecheck test ## Run all quality gates
 
-fmt: ## Check formatting (black)
-	uv run black --check $(SRCS)
+fmt: ## Check formatting (ruff format)
+	uv run ruff format --check $(SRCS)
 
 lint: ## Lint (ruff)
 	uv run ruff check $(SRCS)

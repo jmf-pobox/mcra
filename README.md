@@ -25,7 +25,7 @@ mcra --help
 
 ### TUI
 
-An interactive terminal UI is also available:
+An interactive terminal UI is included:
 
 ```bash
 mcra-tui

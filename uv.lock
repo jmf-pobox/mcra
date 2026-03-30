@@ -313,6 +313,7 @@ dependencies = [
     { name = "click" },
     { name = "httpx" },
     { name = "rich" },
+    { name = "textual" },
 ]
 
 [package.optional-dependencies]
@@ -323,9 +324,6 @@ dev = [
     { name = "pytest-asyncio" },
     { name = "pytest-httpx" },
     { name = "ruff" },
-]
-tui = [
-    { name = "textual" },
 ]
 
 [package.dev-dependencies]
@@ -344,9 +342,9 @@ requires-dist = [
     { name = "pytest-httpx", marker = "extra == 'dev'", specifier = ">=0.35" },
     { name = "rich", specifier = ">=13.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.14" },
-    { name = "textual", marker = "extra == 'tui'", specifier = ">=1.0" },
+    { name = "textual", specifier = ">=1.0" },
 ]
-provides-extras = ["tui", "dev"]
+provides-extras = ["dev"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "pytest-cov", specifier = ">=7.0.0" }]
