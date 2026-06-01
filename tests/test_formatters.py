@@ -1,7 +1,5 @@
 """Tests for output formatters."""
 
-from __future__ import annotations
-
 import json
 from datetime import date
 

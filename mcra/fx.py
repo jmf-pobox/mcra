@@ -4,8 +4,6 @@ Frankfurter returns rates for the requested date or the nearest prior business d
 No API key required. Base URL: https://api.frankfurter.dev/v1
 """
 
-from __future__ import annotations
-
 import asyncio
 from datetime import date
 

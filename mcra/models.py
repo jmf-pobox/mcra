@@ -1,7 +1,5 @@
 """Data models for MCRA results and configuration."""
 
-from __future__ import annotations
-
 from dataclasses import dataclass, field
 from datetime import date, datetime
 
@@ -82,7 +80,7 @@ def _build_currency_map() -> dict[str, CurrencyInfo]:
     entries = [
         CurrencyInfo("USD", "US", "United States", "FRED", "$"),
         CurrencyInfo("EUR", "DE", "Germany", "Eurostat", "€"),
-        CurrencyInfo("GBP", "UK", "United Kingdom", "Eurostat", "£"),
+        CurrencyInfo("GBP", "UK", "United Kingdom", "ONS", "£"),
         CurrencyInfo("CHF", "CH", "Switzerland", "Eurostat", "Fr"),
         CurrencyInfo("JPY", "JP", "Japan", "Eurostat", "¥"),
     ]

@@ -6,7 +6,7 @@ Given a $10,000 portfolio that grew to $12,064 over ~2.8 years, the tool shows h
 
 ## Installation
 
-Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/).
+Requires Python 3.14+ and [uv](https://docs.astral.sh/uv/).
 
 ```bash
 git clone https://github.com/jmf-pobox/mcra.git
@@ -106,7 +106,7 @@ OPTIONAL:
 |------|---------------|------------|
 | USD  | United States | FRED       |
 | EUR  | Germany (Eurozone proxy) | Eurostat |
-| GBP  | United Kingdom | Eurostat  |
+| GBP  | United Kingdom | ONS       |
 | CHF  | Switzerland   | Eurostat   |
 | JPY  | Japan         | Eurostat   |
 
@@ -114,7 +114,10 @@ OPTIONAL:
 
 - **FX rates**: [Frankfurter API](https://frankfurter.dev) — free, no key required
 - **US CPI**: [FRED](https://fred.stlouisfed.org/) series `CPIAUCNS` — requires `FRED_API_KEY` environment variable
-- **Non-US CPI**: [Eurostat](https://ec.europa.eu/eurostat) HICP dataset `prc_hicp_midx` — free, no key required
+- **UK CPI**: [ONS](https://www.ons.gov.uk/) series `D7BT` (CPI all items, 2015=100) — free, no key required
+- **EU/CH/JP CPI**: [Eurostat](https://ec.europa.eu/eurostat) HICP dataset `prc_hicp_midx` — free, no key required
+- **Supplemental**: Authoritative values for months primary APIs cannot serve (e.g., US Oct 2025 Treasury TIPS contingency during government shutdown, BFS national CPI for Switzerland scaled to HICP)
+- **Estimation**: Missing months filled via seasonal-trend composite (geometric blend of 3-year seasonal pattern and trailing 3-month trend)
 - **Fallback**: Bundled CSV with monthly CPI indices (2022–2026)
 
 ### FRED API Key
@@ -170,7 +173,7 @@ mcra/
 ├── cli.py              # Click CLI entry point
 ├── calculator.py       # Pure calculation functions
 ├── fx.py               # Frankfurter API client (async)
-├── cpi.py              # CPI fetching: FRED, Eurostat, CSV fallback
+├── cpi.py              # CPI fetching: FRED, ONS, Eurostat, supplemental, estimation, CSV fallback
 ├── cache.py            # File-based cache (~/.mcra/cache/)
 ├── models.py           # Dataclasses for results and config
 ├── formatters.py       # Table (Rich), JSON, CSV output
