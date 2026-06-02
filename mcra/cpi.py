@@ -202,7 +202,7 @@ async def _fetch_ons(
         if key < start_key:
             continue
         if key > end_key:
-            break
+            continue
         series[key] = float(value)
     return series
 
@@ -530,9 +530,9 @@ async def fetch_cpi_for_currency(
             f"before analysis start {_month_key(start_date)}."
         )
 
-    # 4. Try stale cache
+    # 4. Try stale cache (only if it covers the analysis window)
     stale = cache.load_cpi_cache(country)
-    if stale is not None:
+    if stale is not None and _covers_analysis_window(stale.series, start_date):
         warnings.append(f"Using stale cached CPI for {country}.")
         filled, fill_warnings = _supplement_and_estimate(
             stale.series, country, start_date, end_date
