@@ -1,7 +1,5 @@
 """Pure calculation functions for portfolio return analysis."""
 
-from __future__ import annotations
-
 from datetime import date
 
 

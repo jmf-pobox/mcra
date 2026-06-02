@@ -1,7 +1,5 @@
 """Tests for CLI entry point."""
 
-from __future__ import annotations
-
 from unittest.mock import AsyncMock, patch
 
 from click.testing import CliRunner

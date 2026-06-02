@@ -7,8 +7,6 @@ Cache layout:
         fx_cache.json
 """
 
-from __future__ import annotations
-
 import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -43,7 +41,7 @@ def load_cpi_cache(country: str) -> CPICacheEntry | None:
             base_year=data["base_year"],
             series=data["series"],
         )
-    except (json.JSONDecodeError, KeyError):
+    except json.JSONDecodeError, KeyError:
         return None
 
 

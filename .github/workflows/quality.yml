@@ -19,11 +19,11 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
-          python-version: "3.12"
+          python-version: "3.14"
       - run: uv sync --extra dev --locked
-      - run: uv run ruff check .
-      - run: uv run ruff format --check .
-      - run: uv run mypy mcra/
+      - run: uv run black --check mcra/ tests/
+      - run: uv run ruff check mcra/ tests/
+      - run: uv run mypy --strict mcra/
 
   test:
     name: test
@@ -34,6 +34,6 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
-          python-version: "3.12"
+          python-version: "3.14"
       - run: uv sync --extra dev --locked
-      - run: uv run pytest
+      - run: uv run pytest tests/ -q

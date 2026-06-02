@@ -1,16 +1,18 @@
-"""Async CPI data fetching from FRED (US) and Eurostat (EU/UK/CH/JP).
+"""Async CPI data fetching from FRED (US), ONS (UK), and Eurostat (EU/CH/JP).
 
-Data flow per country:
-    1. Check cache (skip if fresh)
-    2. Fetch from primary API
-    3. On failure, fall back to bundled CSV
-    4. Save successful API responses to cache
+Data flow per country (see fetch_cpi_for_currency):
+    1. Check cache — use if fresh and covers the analysis window
+    2. Fetch from primary API (widened window for seasonal history)
+    3. Cache the result if it covers the analysis window
+    4. Try stale cache (only if it covers the analysis window)
+    5. Fall back to bundled CSV
+    6. Apply supplemental values for months the API cannot serve
+    7. Fill remaining gaps with seasonal-trend composite estimates
 """
-
-from __future__ import annotations
 
 import asyncio
 import csv
+import math
 import os
 from datetime import UTC, date, datetime
 from importlib import resources
@@ -19,6 +21,48 @@ import httpx
 
 from mcra import cache
 from mcra.models import CURRENCY_COUNTRY_MAP, CountryCPIData, CPICacheEntry, CPISeries
+
+SEASONAL_LOOKBACK_YEARS: int = 3
+TREND_MONTHS: int = 3
+
+# Values from authoritative sources that our primary APIs cannot serve.
+# Applied at query time, never cached.  Replaced automatically when real
+# API data appears for the same month.
+# Format: {country: {YYYY-MM: (value, source_note)}}
+_SUPPLEMENTAL: dict[str, dict[str, tuple[float, str]]] = {
+    "US": {
+        # BLS could not publish Oct 2025 CPI due to government shutdown.
+        # Treasury computed this via TIPS index contingency provisions.
+        "2025-10": (325.604, "Treasury TIPS contingency"),
+    },
+    "CH": {
+        # Eurostat stopped publishing HICP for 2026 (dataset stale since
+        # Feb 2026).  BFS national CPI values scaled to Eurostat HICP via
+        # Dec 2025 overlap: Eurostat 107.07 / BFS 107.9.
+        "2026-01": (106.97, "BFS CPI scaled to HICP"),
+        "2026-02": (107.67, "BFS CPI scaled to HICP"),
+        "2026-03": (107.86, "BFS CPI scaled to HICP"),
+        "2026-04": (108.16, "BFS CPI scaled to HICP"),
+    },
+}
+
+
+def _apply_supplemental(series: CPISeries, country: str) -> tuple[CPISeries, list[str]]:
+    """Merge supplemental values into *series* for missing months.
+
+    Returns (augmented_series_copy, list_of_applied_month_keys).
+    """
+    patches = _SUPPLEMENTAL.get(country, {})
+    if not patches:
+        return dict(series), []
+    filled = dict(series)
+    applied: list[str] = []
+    for key, (value, _note) in patches.items():
+        if key not in filled:
+            filled[key] = value
+            applied.append(key)
+    return filled, applied
+
 
 # --- FRED (US CPI) ---
 
@@ -108,6 +152,63 @@ async def _fetch_eurostat(
     return series
 
 
+# --- ONS (UK CPI) ---
+
+ONS_BASE = (
+    "https://www.ons.gov.uk/economy/inflationandpriceindices/timeseries/d7bt/mm23/data"
+)
+
+_ONS_MONTHS = {
+    "JAN": "01",
+    "FEB": "02",
+    "MAR": "03",
+    "APR": "04",
+    "MAY": "05",
+    "JUN": "06",
+    "JUL": "07",
+    "AUG": "08",
+    "SEP": "09",
+    "OCT": "10",
+    "NOV": "11",
+    "DEC": "12",
+}
+
+
+async def _fetch_ons(
+    client: httpx.AsyncClient,
+    start: date,
+    end: date,
+) -> CPISeries:
+    """Fetch UK CPI index (D7BT, 2015=100) from ONS. No API key required."""
+    resp = await client.get(ONS_BASE)
+    resp.raise_for_status()
+    data = resp.json()
+
+    start_key = _month_key(start)
+    end_key = _month_key(end)
+
+    series: CPISeries = {}
+    for obs in data.get("months", []):
+        raw_date = obs.get("date", "")
+        value = obs.get("value", "")
+        if not raw_date or not value:
+            continue
+        parts = raw_date.split()
+        if len(parts) != 2:
+            continue
+        year_str, month_abbr = parts[0], parts[1].upper()
+        month_num = _ONS_MONTHS.get(month_abbr)
+        if month_num is None:
+            continue
+        key = f"{year_str}-{month_num}"
+        if key < start_key:
+            continue
+        if key > end_key:
+            continue
+        series[key] = float(value)
+    return series
+
+
 # --- Bundled CSV fallback ---
 
 
@@ -170,6 +271,119 @@ def _month_distance(a: str, b: str) -> int:
     return (ya * 12 + ma) - (yb * 12 + mb)
 
 
+def _prev_month_key(key: str) -> str:
+    y, m = int(key[:4]), int(key[5:7])
+    if m == 1:
+        return f"{y - 1}-12"
+    return f"{y}-{m - 1:02d}"
+
+
+def _next_month_key(key: str) -> str:
+    y, m = int(key[:4]), int(key[5:7])
+    if m == 12:
+        return f"{y + 1}-01"
+    return f"{y}-{m + 1:02d}"
+
+
+def _seasonal_ratio(
+    series: CPISeries,
+    month: int,
+    lookback_years: int = SEASONAL_LOOKBACK_YEARS,
+) -> float | None:
+    """Geometric mean of month-over-month ratios for a calendar month.
+
+    Looks at CPI[month]/CPI[month-1] across available years, using the
+    most recent ``lookback_years`` observations.
+    """
+    ratios: list[float] = []
+    for key in sorted(series):
+        m = int(key[5:7])
+        if m != month:
+            continue
+        prev = _prev_month_key(key)
+        if prev in series and series[prev] > 0:
+            ratios.append(series[key] / series[prev])
+
+    if not ratios:
+        return None
+    ratios = ratios[-lookback_years:]
+    return math.prod(ratios) ** (1.0 / len(ratios))
+
+
+def _trend_ratio(
+    series: CPISeries,
+    before_key: str,
+    window: int = TREND_MONTHS,
+) -> float | None:
+    """Geometric mean of trailing consecutive month-over-month ratios.
+
+    Uses the ``window`` most recent ratios from months at or before
+    ``before_key`` where both months are present in the series.
+    """
+    sorted_keys = sorted(k for k in series if k <= before_key)
+    if len(sorted_keys) < 2:
+        return None
+
+    ratios: list[float] = []
+    for i in range(1, len(sorted_keys)):
+        prev_k, curr_k = sorted_keys[i - 1], sorted_keys[i]
+        if _month_distance(curr_k, prev_k) == 1 and series[prev_k] > 0:
+            ratios.append(series[curr_k] / series[prev_k])
+
+    if not ratios:
+        return None
+    recent = ratios[-window:]
+    return math.prod(recent) ** (1.0 / len(recent))
+
+
+def fill_estimated_months(
+    series: CPISeries,
+    start_date: date,
+    end_date: date,
+    lookback_years: int = SEASONAL_LOOKBACK_YEARS,
+    trend_months: int = TREND_MONTHS,
+) -> tuple[CPISeries, list[str]]:
+    """Fill gaps in *series* between *start_date* and *end_date*.
+
+    Uses a geometric blend of seasonal pattern and trailing trend.
+    Estimated values are never written to cache — they are recomputed
+    each run and automatically replaced when real data appears.
+
+    Returns (augmented_series_copy, list_of_estimated_month_keys).
+    """
+    filled: CPISeries = dict(series)
+    estimated: list[str] = []
+
+    key = _month_key(start_date)
+    end_key = _month_key(end_date)
+
+    while key <= end_key:
+        if key not in filled:
+            prev = _prev_month_key(key)
+            prev_val = filled.get(prev)
+            if prev_val is not None and prev_val > 0:
+                month = int(key[5:7])
+                seasonal = _seasonal_ratio(filled, month, lookback_years)
+                trend = _trend_ratio(filled, prev, trend_months)
+
+                if seasonal is not None and trend is not None:
+                    composite = (seasonal * trend) ** 0.5
+                elif seasonal is not None:
+                    composite = seasonal
+                elif trend is not None:
+                    composite = trend
+                else:
+                    key = _next_month_key(key)
+                    continue
+
+                filled[key] = prev_val * composite
+                estimated.append(key)
+
+        key = _next_month_key(key)
+
+    return filled, estimated
+
+
 def get_cpi_values(
     series: CPISeries,
     start_date: date,
@@ -202,6 +416,50 @@ def get_cpi_values(
     return start_val, end_val
 
 
+def _covers_analysis_window(series: CPISeries, start_date: date) -> bool:
+    """True if *series* has at least one data point within the analysis range."""
+    if not series:
+        return False
+    start_key = _month_key(start_date)
+    return max(series) >= start_key
+
+
+def _supplement_and_estimate(
+    series: CPISeries,
+    country: str,
+    start_date: date,
+    end_date: date,
+) -> tuple[CPISeries, list[str]]:
+    """Apply supplemental values, then fill remaining gaps with estimates.
+
+    Returns (complete_series, warnings).
+    """
+    warnings: list[str] = []
+
+    augmented, patched = _apply_supplemental(series, country)
+    if patched:
+        sources = {
+            k: _SUPPLEMENTAL[country][k][1]
+            for k in patched
+            if country in _SUPPLEMENTAL and k in _SUPPLEMENTAL[country]
+        }
+        by_source: dict[str, list[str]] = {}
+        for k, src in sources.items():
+            by_source.setdefault(src, []).append(k)
+        for src, months in by_source.items():
+            warnings.append(f"CPI for {country} {', '.join(months)} from {src}.")
+
+    filled, estimated = fill_estimated_months(augmented, start_date, end_date)
+    if estimated:
+        last_real = max(series)
+        warnings.append(
+            f"CPI for {country} {', '.join(estimated)} estimated "
+            f"(seasonal-trend; last observed: {last_real})"
+        )
+
+    return filled, warnings
+
+
 # --- Main fetch orchestrator ---
 
 
@@ -214,55 +472,83 @@ async def fetch_cpi_for_currency(
 ) -> tuple[CPISeries, list[str]]:
     """Fetch CPI series for a currency's reference country.
 
-    Returns (series_dict, warnings_list).
+    Returns (series_dict, warnings_list).  Missing months in the analysis
+    range are filled first from supplemental sources, then with seasonal-
+    trend composite estimates.  Neither is cached — real API data replaces
+    them on the next successful fetch.
     """
     info = CURRENCY_COUNTRY_MAP[currency]
     country = info.country
     warnings: list[str] = []
 
+    history_start = date(start_date.year - SEASONAL_LOOKBACK_YEARS, start_date.month, 1)
+
     # 1. Check cache
     if not force_refresh:
         cached = cache.load_cpi_cache(country)
-        if cached is not None and not cache.is_cpi_stale(cached):
-            return cached.series, warnings
+        if (
+            cached is not None
+            and not cache.is_cpi_stale(cached)
+            and _covers_analysis_window(cached.series, start_date)
+        ):
+            filled, fill_warnings = _supplement_and_estimate(
+                cached.series, country, start_date, end_date
+            )
+            return filled, warnings + fill_warnings
 
-    # 2. Fetch from API
+    # 2. Fetch from API (widened window for seasonal history)
     series: CPISeries | None = None
     source = info.cpi_source
 
     try:
         if source == "FRED":
-            series = await _fetch_fred(client, start_date, end_date)
+            series = await _fetch_fred(client, history_start, end_date)
+        elif source == "ONS":
+            series = await _fetch_ons(client, history_start, end_date)
         else:
-            series = await _fetch_eurostat(client, country, start_date, end_date)
+            series = await _fetch_eurostat(client, country, history_start, end_date)
     except OSError:
         warnings.append("FRED_API_KEY not set. Using cached or fallback US CPI data.")
     except httpx.HTTPError as exc:
         warnings.append(f"API error fetching CPI for {country}: {exc}")
 
-    # 3. Save to cache if we got data
-    if series:
+    # 3. Save to cache if we got data that covers the analysis window
+    if series and _covers_analysis_window(series, start_date):
         entry = CPICacheEntry(
             country=country,
             source=source,
             last_updated=datetime.now(UTC),
-            base_year="2015" if source == "Eurostat" else "1982-84",
+            base_year="1982-84" if source == "FRED" else "2015",
             series=series,
         )
         cache.save_cpi_cache(entry)
-        return series, warnings
+        filled, fill_warnings = _supplement_and_estimate(
+            series, country, start_date, end_date
+        )
+        return filled, warnings + fill_warnings
+    if series:
+        warnings.append(
+            f"API data for {country} ends {max(series)}, "
+            f"before analysis start {_month_key(start_date)}."
+        )
 
-    # 4. Try stale cache
+    # 4. Try stale cache (only if it covers the analysis window)
     stale = cache.load_cpi_cache(country)
-    if stale is not None:
+    if stale is not None and _covers_analysis_window(stale.series, start_date):
         warnings.append(f"Using stale cached CPI for {country}.")
-        return stale.series, warnings
+        filled, fill_warnings = _supplement_and_estimate(
+            stale.series, country, start_date, end_date
+        )
+        return filled, warnings + fill_warnings
 
     # 5. Fall back to bundled CSV
     fallback = _load_fallback_csv()
     if country in fallback:
         warnings.append(f"Using bundled fallback CPI for {country}.")
-        return fallback[country], warnings
+        filled, fill_warnings = _supplement_and_estimate(
+            fallback[country], country, start_date, end_date
+        )
+        return filled, warnings + fill_warnings
 
     raise ValueError(f"No CPI data available for {country} ({currency})")
 

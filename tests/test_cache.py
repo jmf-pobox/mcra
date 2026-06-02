@@ -1,7 +1,5 @@
 """Tests for cache module."""
 
-from __future__ import annotations
-
 from datetime import UTC, datetime, timedelta
 
 from mcra import cache
