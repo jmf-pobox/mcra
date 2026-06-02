@@ -1,11 +1,13 @@
 """Async CPI data fetching from FRED (US), ONS (UK), and Eurostat (EU/CH/JP).
 
-Data flow per country:
-    1. Check cache (skip if fresh)
-    2. Fetch from primary API
-    3. On failure, fall back to bundled CSV
-    4. Save successful API responses to cache
-    5. Fill missing months with seasonal-trend composite estimates
+Data flow per country (see fetch_cpi_for_currency):
+    1. Check cache — use if fresh and covers the analysis window
+    2. Fetch from primary API (widened window for seasonal history)
+    3. Cache the result if it covers the analysis window
+    4. Try stale cache (only if it covers the analysis window)
+    5. Fall back to bundled CSV
+    6. Apply supplemental values for months the API cannot serve
+    7. Fill remaining gaps with seasonal-trend composite estimates
 """
 
 import asyncio
@@ -449,7 +451,7 @@ def _supplement_and_estimate(
 
     filled, estimated = fill_estimated_months(augmented, start_date, end_date)
     if estimated:
-        last_real = max(augmented)
+        last_real = max(series)
         warnings.append(
             f"CPI for {country} {', '.join(estimated)} estimated "
             f"(seasonal-trend; last observed: {last_real})"
