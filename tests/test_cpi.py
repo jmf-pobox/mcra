@@ -313,6 +313,27 @@ class TestFillEstimatedMonths:
         assert "2024-10" not in est2
 
 
+class TestApplySupplemental:
+    def test_fills_missing_month(self):
+        series: cpi.CPISeries = {"2025-09": 324.0, "2025-11": 326.0}
+        filled, applied = cpi._apply_supplemental(series, "US")
+        assert "2025-10" in filled
+        assert filled["2025-10"] == pytest.approx(325.604)
+        assert "2025-10" in applied
+
+    def test_does_not_overwrite_real_data(self):
+        series: cpi.CPISeries = {"2025-09": 324.0, "2025-10": 999.0, "2025-11": 326.0}
+        filled, applied = cpi._apply_supplemental(series, "US")
+        assert filled["2025-10"] == pytest.approx(999.0)
+        assert "2025-10" not in applied
+
+    def test_no_patches_for_unknown_country(self):
+        series: cpi.CPISeries = {"2025-01": 100.0}
+        filled, applied = cpi._apply_supplemental(series, "XX")
+        assert filled == series
+        assert applied == []
+
+
 class TestMonthKeyHelpers:
     def test_prev_month_key(self):
         assert cpi._prev_month_key("2024-01") == "2023-12"
