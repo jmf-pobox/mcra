@@ -52,7 +52,7 @@ def _apply_supplemental(series: CPISeries, country: str) -> tuple[CPISeries, lis
     """
     patches = _SUPPLEMENTAL.get(country, {})
     if not patches:
-        return series, []
+        return dict(series), []
     filled = dict(series)
     applied: list[str] = []
     for key, (value, _note) in patches.items():

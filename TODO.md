@@ -107,7 +107,7 @@ cli = [
 ## Unchanged modules
 
 - **calculator.py** — Pure functions, no changes.
-- **cpi.py** — Already async, already accepts injected client. Only change: use `MCRADataError` instead of `ValueError`/`OSError`. Note: now has FRED, ONS, and Eurostat fetchers plus supplemental values and seasonal-trend estimation.
+- **cpi.py** — Already async, already accepts injected client. Contains FRED, ONS, and Eurostat fetchers plus supplemental values and seasonal-trend estimation. For MCP refactor: replace `ValueError`/`OSError` with `MCRADataError`.
 - **fx.py** — Same as cpi.py.
 - **cache.py** — File-based caching works as-is for single-user MCP.
 - **formatters.py** — CLI-only output. No changes.
